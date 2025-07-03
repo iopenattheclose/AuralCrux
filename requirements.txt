@@ -1,6 +1,6 @@
 pandas
 torchaudio
-torch
+torch==2.4.0
 tqdm
 numpy
 tensorboard
@@ -8,3 +8,4 @@ fastapi
 librosa
 pydantic
 soundfile
+pylance
