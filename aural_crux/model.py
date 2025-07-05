@@ -60,4 +60,26 @@ class AudioCNN(nn.Module):
         for block in self.layer1:
             x = block(x)
 
+        for block in self.layer2:
+            x = block(x)
+
+        for block in self.layer3:
+            x = block(x)
+
+        for block in self.layer4:
+            x = block(x)
+
+        x = self.avg_pool(x)
+
+        #what
+        x = x.view(x.size(0),-1)
+
+        x = self.dropout(x)
+
+        x = self.fc(x)
+
+
+        return x
+
+
 
