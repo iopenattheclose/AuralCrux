@@ -38,5 +38,26 @@ class ResidualBlock(nn.Module):
 class AudioCNN(nn.Module):
     def __init__(self, num_classes=50):
         super().__init__()
-        
+        #in_channels = 1 as we have single input channel for mel spectrogram
+        self.conv1 = nn.Sequential(nn.Conv2d(in_channels=1,out_channels = 64, kernel_size = 7, stride=2, padding=3, bias = False)
+                                    ,nn.BatchNorm2d(num_features = 64)
+                                    ,nn.ReLU(inplace=True)
+                                    ,nn.MaxPool2d(kernel_size=3, stride=2, padding=1))   
+        #module list is used because it is trainable
+        self.layer1 = nn.ModuleList([ResidualBlock(64,64) for i in range (3)])
+        self.layer2 = nn.ModuleList([ResidualBlock(64 if i == 0 else 128,128) for i in range (4)])
+        self.layer3 = nn.ModuleList([ResidualBlock(128 if i == 0 else 256,256) for i in range (6)])
+        self.layer4 = nn.ModuleList([ResidualBlock(256 if i == 0 else 512,512) for i in range (3)])
+
+        self.avg_pool = nn.AdaptiveAvgPool2d((1,1))#flatten??
+        self.dropout = nn.Dropout(0.5)
+        self.fc = nn.Linear(in_features=512, out_features=num_classes)
+
+    def forwad(self,x):
+
+        x = self.conv1(x)
+
+        for block in self.layer1:
+            x = block(x)
+
 
