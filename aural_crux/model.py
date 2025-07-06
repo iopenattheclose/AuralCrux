@@ -38,7 +38,6 @@ class ResidualBlock(nn.Module):
 
         return out
 
-
  #NN class for training and inference   
 
 class AudioCNN(nn.Module):

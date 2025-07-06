@@ -1,6 +1,6 @@
 pandas
 torchaudio
-torch==2.4.0
+torch
 tqdm
 numpy
 tensorboard
