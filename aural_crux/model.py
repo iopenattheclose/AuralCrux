@@ -87,3 +87,5 @@ class AudioCNN(nn.Module):
 
 
 
+if __name__=="__main__":
+    print("gpu" if torch.cuda.is_available() else 'cpu')

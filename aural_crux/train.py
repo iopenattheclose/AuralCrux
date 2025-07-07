@@ -217,6 +217,8 @@ def train():
         if accuracy > best_accuracy:
             best_accuracy = accuracy
 
+        
+        #add to utils.py
         model_directory = "aural_crux/artifacts/models"
         if not os.path.exists(model_directory):
             os.makedirs(model_directory)
