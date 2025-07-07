@@ -61,71 +61,113 @@ class AudioClassifier:
         self.audio_processor = AudioProcessor()
         print("Model loaded on enter")
 
-def inference(self, request: InferenceRequest):
-        #deployed model in prod -> upload to s3 and then download
-        #here - send file directly to inference endpoint
-        
-        audio_bytes = base64.b64decode(request.audio_data)
+    def inference(self, request: InferenceRequest):
+            #deployed model in prod -> upload to s3 and then download
+            #here - send file directly to inference endpoint
+            
+            # audio_bytes = base64.b64decode(request.audio_data)
 
-        audio_data, sample_rate = sf.read(
-            io.BytesIO(audio_bytes), dtype="float32")
+            audio_bytes = base64.b64decode(request)
 
-        if audio_data.ndim > 1:
-            audio_data = np.mean(audio_data, axis=1)
+            audio_data, sample_rate = sf.read(
+                io.BytesIO(audio_bytes), dtype="float32")
 
-        if sample_rate != 44100:
-            audio_data = librosa.resample(
-                y=audio_data, orig_sr=sample_rate, target_sr=44100)
+            if audio_data.ndim > 1:
+                audio_data = np.mean(audio_data, axis=1)
 
-        spectrogram = self.audio_processor.process_audio_chunk(audio_data)
-        spectrogram = spectrogram.to(self.device)
+            if sample_rate != 44100:
+                audio_data = librosa.resample(
+                    y=audio_data, orig_sr=sample_rate, target_sr=44100)
 
-        with torch.no_grad():
-            output, feature_maps = self.model(
-                spectrogram, return_feature_maps=True)
+            spectrogram = self.audio_processor.process_audio_chunk(audio_data)
+            spectrogram = spectrogram.to(self.device)
 
-            output = torch.nan_to_num(output)
-            probabilities = torch.softmax(output, dim=1)
-            top3_probs, top3_indicies = torch.topk(probabilities[0], 3)
+            with torch.no_grad():
+                output, feature_maps = self.model(
+                    spectrogram, return_feature_maps=True)
 
-            predictions = [{"class": self.classes[idx.item()], "confidence": prob.item()}
-                           for prob, idx in zip(top3_probs, top3_indicies)]
+                output = torch.nan_to_num(output)
+                probabilities = torch.softmax(output, dim=1)
+                top3_probs, top3_indicies = torch.topk(probabilities[0], 3)
 
-            viz_data = {}
-            for name, tensor in feature_maps.items():
-                if tensor.dim() == 4:  # [batch_size, channels, height, width]
-                    aggregated_tensor = torch.mean(tensor, dim=1)
-                    squeezed_tensor = aggregated_tensor.squeeze(0)
-                    numpy_array = squeezed_tensor.cpu().numpy()
-                    clean_array = np.nan_to_num(numpy_array)
-                    viz_data[name] = {
-                        "shape": list(clean_array.shape),
-                        "values": clean_array.tolist()
-                    }
+                predictions = [{"class": self.classes[idx.item()], "confidence": prob.item()}
+                            for prob, idx in zip(top3_probs, top3_indicies)]
 
-            spectrogram_np = spectrogram.squeeze(0).squeeze(0).cpu().numpy()
-            clean_spectrogram = np.nan_to_num(spectrogram_np)
+                viz_data = {}
+                for name, tensor in feature_maps.items():
+                    if tensor.dim() == 4:  # [batch_size, channels, height, width]
+                        aggregated_tensor = torch.mean(tensor, dim=1)
+                        squeezed_tensor = aggregated_tensor.squeeze(0)
+                        numpy_array = squeezed_tensor.cpu().numpy()
+                        clean_array = np.nan_to_num(numpy_array)
+                        viz_data[name] = {
+                            "shape": list(clean_array.shape),
+                            "values": clean_array.tolist()
+                        }
 
-            max_samples = 8000
-            waveform_sample_rate = 44100
-            if len(audio_data) > max_samples:
-                step = len(audio_data) // max_samples
-                waveform_data = audio_data[::step]
-            else:
-                waveform_data = audio_data
+                spectrogram_np = spectrogram.squeeze(0).squeeze(0).cpu().numpy()
+                clean_spectrogram = np.nan_to_num(spectrogram_np)
 
-        response = {
-            "predictions": predictions,
-            "visualization": viz_data,
-            "input_spectrogram": {
-                "shape": list(clean_spectrogram.shape),
-                "values": clean_spectrogram.tolist()
-            },
-            "waveform": {
-                "values": waveform_data.tolist(),
-                "sample_rate": waveform_sample_rate,
-                "duration": len(audio_data) / waveform_sample_rate
+                max_samples = 8000
+                waveform_sample_rate = 44100
+                if len(audio_data) > max_samples:
+                    step = len(audio_data) // max_samples
+                    waveform_data = audio_data[::step]
+                else:
+                    waveform_data = audio_data
+
+            response = {
+                "predictions": predictions,
+                "visualization": viz_data,
+                "input_spectrogram": {
+                    "shape": list(clean_spectrogram.shape),
+                    "values": clean_spectrogram.tolist()
+                },
+                "waveform": {
+                    "values": waveform_data.tolist(),
+                    "sample_rate": waveform_sample_rate,
+                    "duration": len(audio_data) / waveform_sample_rate
+                }
             }
-        }
 
-        return response
+            return response
+
+
+def predict():
+    # random_audio = np.random.choice()
+    audio_data, sample_rate = sf.read("aural_crux/artifacts/audio/5-244327-A-34.wav")
+
+    buffer = io.BytesIO()
+    sf.write(buffer, audio_data, sample_rate, format="WAV")
+    audio_b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+    payload = {"audio_data": audio_b64}
+
+    server = AudioClassifier()
+
+    #this is for inference in terminal
+    # server.load_model()
+    # response = server.inference(audio_b64)
+    # result = response
+
+
+    server = AudioClassifier()
+    url = server.inference.get_web_url()
+    response = requests.post(url, json=payload)
+    response.raise_for_status()
+
+    result = response.json()
+
+
+    waveform_info = result.get("waveform", {})
+    if waveform_info:
+        values = waveform_info.get("values", {})
+        print(f"First 10 values: {[round(v, 4) for v in values[:10]]}...")
+        print(f"Duration: {waveform_info.get("duration", 0)}")
+
+    print("Top predictions:")
+    for pred in result.get("predictions", []):
+        print(f"  -{pred["class"]} {pred["confidence"]:0.2%}")
+
+
+if __name__=="__main__":
+    predict() 

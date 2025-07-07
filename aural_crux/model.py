@@ -22,19 +22,23 @@ class ResidualBlock(nn.Module):
                                                 )
     #In PyTorch, every nn.Module subclass must implement a forward method. 
     # This method defines how the input data (x) is processed through the layers defined in the __init__ method.
-    def forward(self,x):
+    def forward(self, x, fmap_dict=None, prefix=""):
         #when you write out = self.conv1(x),you are invoking the __call__ magic method of the self.conv1 object (which is an instance of nn.Conv2d)
         #self.conv1(x) -> This effectively executes the forward method defined within the nn.Conv2d class (the code that performs the actual convolution operation) on your input x
         out = self.conv1(x)
         out = self.bn1(out)
         out = torch.relu(out)
-
         out = self.conv2(out)
         out = self.bn2(out)
         skip_connection = self.skip_connection(x) if self.use_skip_connection else x
-
         out_add = out + skip_connection
+
+        if fmap_dict is not None:
+            fmap_dict[f"{prefix}.conv"] = out_add
+
         out = torch.relu(out_add)
+        if fmap_dict is not None:
+            fmap_dict[f"{prefix}.relu"] = out
 
         return out
 
@@ -58,32 +62,48 @@ class AudioCNN(nn.Module):
         self.dropout = nn.Dropout(0.5)
         self.fc = nn.Linear(in_features=512, out_features=num_classes)
 
-    def forward(self,x):
+    def forward(self, x, return_feature_maps=False):
+            if not return_feature_maps:
+                x = self.conv1(x)
+                for block in self.layer1:
+                    x = block(x)
+                for block in self.layer2:
+                    x = block(x)
+                for block in self.layer3:
+                    x = block(x)
+                for block in self.layer4:
+                    x = block(x)
+                x = self.avgpool(x)
+                x = x.view(x.size(0), -1)
+                x = self.dropout(x)
+                x = self.fc(x)
+                return x
+            else:
+                feature_maps = {}
+                x = self.conv1(x)
+                feature_maps["conv1"] = x
 
-        x = self.conv1(x)
+                for i, block in enumerate(self.layer1):
+                    x = block(x, feature_maps, prefix=f"layer1.block{i}")
+                feature_maps["layer1"] = x
 
-        for block in self.layer1:
-            x = block(x)
+                for i, block in enumerate(self.layer2):
+                    x = block(x, feature_maps, prefix=f"layer2.block{i}")
+                feature_maps["layer2"] = x
 
-        for block in self.layer2:
-            x = block(x)
+                for i, block in enumerate(self.layer3):
+                    x = block(x, feature_maps, prefix=f"layer3.block{i}")
+                feature_maps["layer3"] = x
 
-        for block in self.layer3:
-            x = block(x)
+                for i, block in enumerate(self.layer4):
+                    x = block(x, feature_maps, prefix=f"layer4.block{i}")
+                feature_maps["layer4"] = x
 
-        for block in self.layer4:
-            x = block(x)
-
-        x = self.avg_pool(x)
-
-        #flatten
-        x = x.view(x.size(0),-1)
-
-        x = self.dropout(x)
-
-        x = self.fc(x)
-
-        return x
+                x = self.avg_pool(x)
+                x = x.view(x.size(0), -1)
+                x = self.dropout(x)
+                x = self.fc(x)
+                return x, feature_maps
 
 
 
