@@ -23,8 +23,15 @@ class ResidualBlock(nn.Module):
     #In PyTorch, every nn.Module subclass must implement a forward method. 
     # This method defines how the input data (x) is processed through the layers defined in the __init__ method.
     def forward(self, x, fmap_dict=None, prefix=""):
+
+        #You won't call forward directly.
+        #When you use an instance of this class like a function, for example, my_residual_block(x), 
+        # the __call__ method of nn.Module is implicitly invoked. This __call__ method is what handles 
+        # the internal PyTorch logic and then, in turn, calls the forward method to perform the computations.
+
         #when you write out = self.conv1(x),you are invoking the __call__ magic method of the self.conv1 object (which is an instance of nn.Conv2d)
         #self.conv1(x) -> This effectively executes the forward method defined within the nn.Conv2d class (the code that performs the actual convolution operation) on your input x
+        #objects can be made callable if __call__ is defined in the class (here it is defined in Conv2d class)
         out = self.conv1(x)
         out = self.bn1(out)
         out = torch.relu(out)
