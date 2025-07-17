@@ -214,3 +214,5 @@ internal_readme.txt
 
 audio-classifier/frontend/node_modules
 audio-classifier/frontend/public
+
+node_modules
