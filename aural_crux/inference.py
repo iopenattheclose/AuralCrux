@@ -49,7 +49,7 @@ class AudioClassifier:
 
         model_directory = "aural_crux/artifacts/models"
 
-        checkpoint = torch.load(f'{model_directory}/best_model.pth',
+        checkpoint = torch.load('/Users/prupro/Desktop/Github/Auralcrux/aural_crux/artifacts/models/best_model.pth',
                                 map_location=self.device)
         self.classes = checkpoint['classes']
 
@@ -133,41 +133,46 @@ class AudioClassifier:
             return response
 
 
-def predict():
-    # random_audio = np.random.choice()
-    audio_data, sample_rate = sf.read("aural_crux/artifacts/audio/5-244327-A-34.wav")
+    def get_web_url(self):
+        return "http://dummy-external-inference-service.com/predict"
+
+def predict(uploaded_audio_bytes: bytes,classifier_instance: 'AudioClassifier'):
+    audio_data, sample_rate = sf.read(io.BytesIO(uploaded_audio_bytes), dtype="float32")
 
     buffer = io.BytesIO()
     sf.write(buffer, audio_data, sample_rate, format="WAV")
     audio_b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
     payload = {"audio_data": audio_b64}
 
-    server = AudioClassifier()
+    # server = AudioClassifier()
 
-    #this is for inference in terminal
-    # server.load_model()
-    # response = server.inference(audio_b64)
-    # result = response
+    result = classifier_instance.inference(audio_b64)
 
-
-    server = AudioClassifier()
-    url = server.inference.get_web_url()
-    response = requests.post(url, json=payload)
-    response.raise_for_status()
-
-    result = response.json()
-
+    url = classifier_instance.get_web_url()
+    try:
+        response = requests.post(url, json=payload, timeout=10)
+        response.raise_for_status()
+        external_result = response.json()
+    except requests.exceptions.ConnectionError:
+        external_result = None
+    except requests.exceptions.RequestException as e:
+        external_result = None
 
     waveform_info = result.get("waveform", {})
     if waveform_info:
-        values = waveform_info.get("values", {})
-        print(f"First 10 values: {[round(v, 4) for v in values[:10]]}...")
-        print(f"Duration: {waveform_info.get("duration", 0)}")
+        values_list = waveform_info.get("values", [])
+        if isinstance(values_list, dict):
+            values_list = []
+        print(f"First 10 waveform values: {[round(v, 4) for v in values_list[:10]]}...")
+        print(f"Duration: {waveform_info.get("duration", 0):.2f} seconds")
 
     print("Top predictions:")
     for pred in result.get("predictions", []):
-        print(f"  -{pred["class"]} {pred["confidence"]:0.2%}")
+        class_name = pred.get("class", "N/A")
+        confidence = pred.get("confidence", 0)
+        print(f"  - {class_name}: {confidence:0.2%}")
 
+    return result
 
 if __name__=="__main__":
     predict() 
