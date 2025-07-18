@@ -78,9 +78,3 @@ async def process_uploaded_audio(audioFile: UploadFile = File(...)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An internal server error occurred: {str(e)}"
         )
-
-# --- How to Run This FastAPI Application ---
-# 1. Save this code as `backend/main.py`.
-# 2. Open your terminal, navigate to the `backend/` directory.
-# 3. Run: `uvicorn main:app --reload --port 5000`
-#    (Make sure your frontend's fetch URL points to http://localhost:5000/api/process-audio)

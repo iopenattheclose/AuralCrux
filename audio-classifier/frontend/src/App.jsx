@@ -2,6 +2,8 @@
 
 import './App.css'; // Your global or component-specific CSS
 import React, { useState } from 'react'; // Import React and the useState hook
+// Import Recharts components for the bar chart
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
 
 export default function App() {
   // State variables to manage UI and data flow
@@ -12,7 +14,7 @@ export default function App() {
 
   /**
    * Handles the file selection event and orchestrates the backend communication.
-   * @param {React.ChangeEvent<HTMLInputElement>} event The change event from the file input.
+   * @param {object} event The change event from the file input.
    */
   const handleFileChange = async (event) => {
     const file = event.target.files?.[0]; // Get the first selected file
@@ -37,8 +39,8 @@ export default function App() {
       formData.append('audioFile', file); // 'audioFile' should match the field name your backend expects
 
       // 3. Send the POST request to your backend API
-      //    !!! IMPORTANT: Replace '/api/process-audio' with your actual backend endpoint URL !!!
-      const response = await fetch('http://127.0.0.1:5000/api/predict', { // Example: If your backend is on localhost:5000
+      //    The URL 'http://127.0.0.1:5000/api/predict' should match your FastAPI endpoint
+      const response = await fetch('http://127.0.0.1:5000/api/predict', {
         method: 'POST',
         body: formData,
         // No 'Content-Type' header needed for FormData; browser handles it
@@ -79,12 +81,24 @@ export default function App() {
     }
   };
 
+  // Prepare data for the chart: Get top 3 predictions and format them
+  // This logic runs on every render, but only processes `vizData.predictions` when available
+  const chartData = vizData && vizData.predictions
+    ? vizData.predictions
+        .sort((a, b) => b.confidence - a.confidence) // Sort by confidence descending
+        .slice(0, 3) // Take the top 3
+        .map(pred => ({
+          name: pred.class.replace(/_/g, ' '), // Format class name for display (e.g., "washing_machine" -> "washing machine")
+          Probability: (pred.confidence * 100).toFixed(2), // Convert to percentage and format to 2 decimal places
+        }))
+    : []; // If no predictions, default to an empty array
+
   return (
-    <main className="min-h-screen bg-white p-8">
-      <div className="mx-auto max-w-[50%]">
+    <main className="min-h-screen bg-white p-8 font-inter"> {/* Added font-inter for consistent font */}
+      <div className="mx-auto max-w-[90%] bg-white p-8 rounded-xl shadow-lg"> {/* Added styling to main content div */}
         <div className="mb-12 text-center">
-          <h1 className="mb-4 text-4xl font-bold tracking-tight text-black">CNN Audio Visualizer</h1>
-          <p className="mb-7 text-md font-light tracking-tight text-black">Upload a wav file to see model predictions and feature maps</p>
+          <h1 className="mb-4 text-4xl font-bold tracking-tight text-gray-900">CNN Audio Visualizer</h1> {/* Changed text color */}
+          <p className="mb-7 text-md font-light tracking-tight text-gray-700">Upload a WAV file to see model predictions and feature maps.</p> {/* Changed text color */}
 
           <div className="flex flex-col items-center gap-4"> {/* Space between elements in this column */}
 
@@ -95,14 +109,14 @@ export default function App() {
               id="file-upload"
               disabled={isLoading} // Disable input when loading
               className="hidden"
-              onChange={handleFileChange} //{/* Attach the file change handler */}
+              onChange={handleFileChange} // Attach the file change handler
             />
 
             {/* Visually styled label that acts as the "Choose File" button */}
             <label
               htmlFor="file-upload"
               // Dynamically apply classes for visual feedback during loading
-              className={`cursor-pointer bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg shadow-md transition duration-300 ease-in-out
+              className={`cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg shadow-md transition duration-300 ease-in-out
                 ${isLoading
                   ? 'opacity-50 pointer-events-none' // Faded and unclickable when loading
                   : 'transform hover:scale-105'     // Scale effect on hover when not loading
@@ -114,32 +128,63 @@ export default function App() {
 
             {/* Display selected file name */}
             {fileName && !isLoading && ( // Show name only if not loading
-              <p className="text-sm text-gray-700">Selected: <span className="font-medium">{fileName}</span></p>
+              <p className="text-sm text-gray-600 mt-2">Selected: <span className="font-medium">{fileName}</span></p>
             )}
 
-            {/* Display loading indicator */}
-            {isLoading && (
-              <p className="text-blue-600">Processing file...</p>
-            )}
-
+  
             {/* Display error message */}
             {error && (
-              <p className="text-red-600 text-center font-medium">Error: {error}</p>
+              <p className="text-red-600 text-center font-medium mt-2">Error: {error}</p>
             )}
 
             {/* Section to display analysis results from the backend */}
             {vizData && (
               <div className="mt-8 p-6 bg-gray-50 rounded-lg shadow-inner w-full text-left">
-                <h2 className="text-2xl font-semibold mb-4 text-gray-800">Analysis Results</h2>
+                <h2 className="text-2xl font-semibold mb-6 text-gray-800 text-center">Analysis Results</h2>
 
-                {/* Display Predictions */}
+                {/* Probability Chart for Top 3 Predictions */}
+                {chartData.length > 0 && (
+                  <div className="mb-6 bg-white p-4 rounded-lg shadow-md">
+                    <h3 className="text-xl font-medium mb-4 text-gray-700 text-center">Top 3 Predictions</h3>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart
+                        data={chartData}
+                        margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" /> {/* Light gray grid lines */}
+                        <XAxis dataKey="name" tick={{ fill: '#4a5568', fontSize: 12 }} /> {/* Darker tick labels */}
+                        <YAxis tickFormatter={(value) => `${value}%`} domain={[0, 100]} tick={{ fill: '#4a5568', fontSize: 12 }} />
+                        <Tooltip
+                          // Custom formatter for tooltip content
+                          formatter={(value) => [`${value}%`, 'Probability']}
+                          labelFormatter={(label) => `Class: ${label}`}
+                          // Custom styling for the tooltip box
+                          contentStyle={{
+                            backgroundColor: '#fff',
+                            border: '1px solid #ccc',
+                            borderRadius: '8px',
+                            padding: '10px',
+                            boxShadow: '0px 2px 10px rgba(0,0,0,0.1)'
+                          }}
+                          labelStyle={{ color: '#333', fontWeight: 'bold' }} // Styling for the label in tooltip
+                          itemStyle={{ color: '#555' }} // Styling for the item value in tooltip
+                        />
+                        <Legend wrapperStyle={{ paddingTop: '10px' }} /> {/* Space above the legend */}
+                        <Bar dataKey="Probability" fill="#3b82f6" radius={[10, 10, 0, 0]} /> {/* Blue bars with rounded top corners */}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+
+                {/* Display All Predictions (as before, but formatted) */}
                 {vizData.predictions && vizData.predictions.length > 0 && (
                   <div className="mb-4">
-                    <h3 className="text-xl font-medium mb-2 text-gray-700">Predictions:</h3>
-                    {/* Adapt this rendering based on your actual predictions data structure */}
+                    <h3 className="text-xl font-medium mb-2 text-gray-700">All Predictions:</h3>
                     <ul className="list-disc list-inside text-gray-600">
                       {vizData.predictions.map((pred, index) => (
-                        <li key={index}>{JSON.stringify(pred)}</li>
+                        <li key={index}>
+                          {pred.class.replace(/_/g, ' ')}: {(pred.confidence * 100).toFixed(2)}%
+                        </li>
                       ))}
                     </ul>
                   </div>
@@ -149,11 +194,11 @@ export default function App() {
                 {vizData.visualization && (
                   <div className="mb-4">
                     <h3 className="text-xl font-medium mb-2 text-gray-700">Visualization:</h3>
-                    {/* Assuming base64 image data URI, e.g., "data:image/png;base64,..." */}
+                    {/* Assuming visualization might be a base64 image data URI */}
                     {typeof vizData.visualization === 'string' && vizData.visualization.startsWith('data:image/') ? (
                       <img src={vizData.visualization} alt="Visualization Plot" className="max-w-full h-auto rounded-md shadow-sm" />
                     ) : (
-                      // Fallback for other types of visualization data
+                      // Fallback for other types of visualization data (e.g., JSON)
                       <pre className="bg-white p-3 rounded text-sm overflow-auto max-h-60 border border-gray-200">{JSON.stringify(vizData.visualization, null, 2)}</pre>
                     )}
                   </div>
@@ -164,7 +209,7 @@ export default function App() {
                   <div className="mb-4">
                     <h3 className="text-xl font-medium mb-2 text-gray-700">Input Spectrogram Data:</h3>
                     <p className="text-gray-600">Shape: {vizData.input_spectrogram.shape.join('x')}</p>
-                    {/* To display the spectrogram visually, you'd need a Canvas API or a charting library */}
+                    {/* Placeholder for actual spectrogram visualization (e.g., using Canvas) */}
                   </div>
                 )}
 
@@ -174,7 +219,7 @@ export default function App() {
                     <h3 className="text-xl font-medium mb-2 text-gray-700">Waveform Data:</h3>
                     <p className="text-gray-600">Sample Rate: {vizData.waveform.sample_rate} Hz</p>
                     <p className="text-gray-600">Duration: {vizData.waveform.duration.toFixed(2)} seconds</p>
-                    {/* For audio playback, you might use Web Audio API or if backend provides a direct playable URL/base64 WAV */}
+                    {/* Placeholder for actual waveform visualization or audio playback */}
                   </div>
                 )}
               </div>

@@ -174,5 +174,3 @@ def predict(uploaded_audio_bytes: bytes,classifier_instance: 'AudioClassifier'):
 
     return result
 
-if __name__=="__main__":
-    predict() 

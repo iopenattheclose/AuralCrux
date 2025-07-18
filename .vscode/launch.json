@@ -1,0 +1,20 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "FastAPI (Uvicorn)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "uvicorn",
+            "args": [
+                "main:app", // Points to main.py and the 'app' FastAPI instance
+                "--host", "127.0.0.1",
+                "--port", "5000",
+                "--reload" // Optional, but useful for development
+            ],
+            "cwd": "${aural_crux}/", // IMPORTANT: This tells VS Code where to start the server from
+            "jinja": true,
+            "justMyCode": true
+        }
+    ]
+}
